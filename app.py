@@ -9,25 +9,91 @@ import numpy as np
 import os
 from collections import Counter
 
+import tkinter as tk
+import time
+
+class ToolTip:
+    def __init__(self, widget, text, fade_in_period=0.5):
+        self.widget = widget
+        self.text = text
+        self.fade_in_period = fade_in_period
+        self.opacity = 0
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.enter)
+        self.widget.bind("<Leave>", self.leave)
+
+    def enter(self, event=None):
+        self.create_tooltip()
+        self.reset()
+        self.tooltip.deiconify()
+
+    def reset(self):
+        self.opacity = 0
+        self.tooltip.attributes("-alpha", self.opacity)
+        self.widget.after(50, self.fade_in)
+    def leave(self, event=None):
+        self.hide_tooltip()
+
+    def create_tooltip(self):
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.geometry(f"+{x}+{y}")
+        self.tooltip.overrideredirect(True)
+        self.tooltip.attributes("-alpha", self.opacity)
+
+        label = tk.Label(self.tooltip, text=self.text, bg="white", padx=5, pady=2)
+        label.pack()
+
+        self.fade_in()
+
+    def fade_in(self):
+        if self.opacity < 1:
+            self.opacity += 0.1
+            self.tooltip.attributes("-alpha", self.opacity)
+            self.widget.after(50, self.fade_in)
+        else:
+            self.opacity = 1
+
+    def hide_tooltip(self):
+        self.tooltip.withdraw()
+
+
 class ImageManipulatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Image Manipulator")
 
-        self.frame = tk.Frame(root)
+        self.frame = tk.Frame(root, bg="#f0f0f0")
         self.frame.pack(padx=20, pady=20)
 
-        self.btn_select_images = tk.Button(self.frame, text="Resize Images", command=self.resize_images_option)
-        self.btn_select_images.grid(row=1, column=0, pady=10)
+        self.btn_select_images = tk.Button(self.frame, text="Resize Images", command=self.resize_images_option,
+                                           bg="#007bff", fg="white", relief="flat", padx=10)
+        self.btn_select_images.grid(row=1, column=0, pady=10, padx=10, sticky="ew")
+        ToolTip(self.btn_select_images, "Select PNG images, input resize percentage,\nresize, save to subfolder in initial directory.")
 
-        self.btn_select_spritesheet = tk.Button(self.frame, text="Make Spritesheet", command=self.create_spritesheet_option)
-        self.btn_select_spritesheet.grid(row=1, column=1, pady=10)
+        self.btn_select_spritesheet = tk.Button(self.frame, text="Make Spritesheet", command=self.create_spritesheet_option,
+                                                bg="#28a745", fg="white", relief="flat", padx=10)
+        self.btn_select_spritesheet.grid(row=1, column=1, pady=10, padx=10, sticky="ew")
+        ToolTip(self.btn_select_spritesheet, "Select PNG images, combine into sprite-\nsheet, save to subfolder in initial directory.")
 
-        self.btn_select_colors = tk.Button(self.frame, text="Replace Colors", command=self.select_colors)
-        self.btn_select_colors.grid(row=2, column=0, columnspan=1, pady=10)
+        self.btn_select_colors = tk.Button(self.frame, text="Replace Colors", command=self.select_colors,
+                                           bg="#dc3545", fg="white", relief="flat", padx=10)
+        self.btn_select_colors.grid(row=2, column=0, pady=10, padx=10, sticky="ew")
+        ToolTip(self.btn_select_colors, "Choose color to replace, select new color, select PNG images,\nreplace colors, save to subfolder in initial directory.")
 
-        self.btn_select_images = tk.Button(self.frame, text="Pixelate", command=self.pixelate_images_option)
-        self.btn_select_images.grid(row=2, column=1, columnspan=2, pady=10)
+        self.btn_select_images = tk.Button(self.frame, text="Pixelate", command=self.pixelate_images_option,
+                                           bg="#17a2b8", fg="white", relief="flat", padx=10)
+        self.btn_select_images.grid(row=3, column=0, pady=10, columnspan=2, padx=10, sticky="ew")
+        ToolTip(self.btn_select_images, "Select PNG images, adjust options, pixelate,\nsave to subfolder in initial directory.")
+
+        self.btn_remove_color = tk.Button(self.frame, text="Remove Color", command=self.remove_color_option,
+                                          bg="#ebad07", fg="white", relief="flat", padx=10)
+        self.btn_remove_color.grid(row=2, column=1, pady=10, padx=10, sticky="ew")
+        ToolTip(self.btn_remove_color, "Choose color to remove, select PNG images,\n remove color, save to subfolder in initial directory.")
+
 
     def resize_images_option(self):
         files = filedialog.askopenfilenames(filetypes=[("PNG files", "*.png")])
@@ -49,7 +115,7 @@ class ImageManipulatorApp:
     def select_colors(self):
         # Set default colors
         default_color1 = (127, 127, 127)
-        default_color2 = (153, 251, 87)
+        default_color2 = (96, 180, 242)
         # Create a custom color picker dialog to choose the colors to replace
         target_color = askcolor(title="Choose Color to Replace", color=default_color1)
         if target_color:
@@ -69,25 +135,53 @@ class ImageManipulatorApp:
         if files:
             PixelateWindow(self.root, files)
 
+    def remove_color_option(self):
+        # Create a custom color picker dialog to choose the color to remove
+        default_color = (59, 93, 201)
+        target_color = askcolor(title="Choose Color to Remove", color=default_color)[0]
+        if target_color:
+            target_color = tuple(int(x) for x in target_color)
+            files = filedialog.askopenfilenames(filetypes=[("PNG files", "*.png")])
+            if files:
+                # Get the directory of the first selected file
+                directory = os.path.dirname(files[0])
+                self.remove_color(files, directory, target_color)
+
+    def remove_color(self, files, output_directory, target_color):
+        removed_directory = output_directory + "/removed_images"
+        os.makedirs(removed_directory, exist_ok=True)
+
+        for file in files:
+            img = Image.open(file)
+            img = img.convert("RGBA")
+            img = ImageManipulator.remove_color(img, target_color[:3])
+            file_name = os.path.basename(file)
+            img.save(f"{removed_directory}/{file_name}")
+
+        messagebox.showinfo("Success", "Color removed from images and saved successfully.")
+
+
 class PixelateWindow:
     def __init__(self, root, files):
         self.files = files
         self.pixelate_window = tk.Toplevel(root)
         self.pixelate_window.title("Pixelation Options")
 
-        self.block_size_label = tk.Label(self.pixelate_window, text="Block Size")
+        self.pixelate_window.configure(bg="#f0f0f0")
+
+        self.block_size_label = tk.Label(self.pixelate_window, text="Block Size", bg="#f0f0f0")
         self.block_size_label.grid(row=0, column=0, padx=10, pady=5)
         self.block_size_scale = tk.Scale(self.pixelate_window, from_=1, to=20, orient="horizontal")
         self.block_size_scale.set(4)
         self.block_size_scale.grid(row=0, column=1, padx=10, pady=5)
 
-        self.saturation_label = tk.Label(self.pixelate_window, text="Saturation Level")
+        self.saturation_label = tk.Label(self.pixelate_window, text="Saturation Level", bg="#f0f0f0")
         self.saturation_label.grid(row=1, column=0, padx=10, pady=5)
         self.saturation_scale = tk.Scale(self.pixelate_window, from_=-100, to=100, orient="horizontal")
         self.saturation_scale.set(-25)
         self.saturation_scale.grid(row=1, column=1, padx=10, pady=5)
 
-        self.palette_label = tk.Label(self.pixelate_window, text="Select Palette:")
+        self.palette_label = tk.Label(self.pixelate_window, text="Select Palette:", bg="#f0f0f0")
         self.palette_label.grid(row=2, column=0, padx=10, pady=5)
 
         # Define sample palettes
@@ -130,7 +224,7 @@ class PixelateWindow:
         self.remove_background_checkbutton.grid(row=3, column=0, columnspan=2, pady=5)
 
         self.pixelate_button = tk.Button(self.pixelate_window, text="Pixelate",
-                                         command=self.start_pixelation_thread)
+                                          bg="#17a2b8", fg="white", relief="flat", padx=10, command=self.start_pixelation_thread)
         self.pixelate_button.grid(row=4, column=0, columnspan=2, pady=10)
 
     def add_palette_to_menu(self, palette_name, palette):
@@ -336,8 +430,6 @@ class ImageManipulator:
 
     @staticmethod
     def closest_color(pixel, palette):
-
-
         min_dist = float('inf')
         closest = None
         for color in palette:
@@ -353,10 +445,15 @@ class ImageManipulator:
         pixels = image.getdata()
         color_counts = Counter(pixels)
         max_color = color_counts.most_common(1)[0][0]
+        return ImageManipulator.remove_color(image, max_color)
+
+    @staticmethod
+    def remove_color(image, color):
         newData = []
+        pixels = image.getdata()
         for item in pixels:
-            if item == max_color:
-                newData.append((max_color[0], max_color[1], max_color[2], 0))
+            if item[:3] == color:
+                newData.append((color[0], color[1], color[2], 0))
             else:
                 newData.append(item)
         image.putdata(newData)
