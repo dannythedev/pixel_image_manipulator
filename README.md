@@ -4,19 +4,19 @@ The Pixel Image Manipulator is a Python application built using tkinter for crea
 
 <img src="https://github.com/dannythedev/pixel_image_manipulator/assets/99733108/80e7b8d9-298a-400a-85bb-1daf8e803226" alt="image" width="70%">
 
-
-<img src="https://github.com/dannythedev/pixel_image_manipulator/assets/99733108/ba5cd450-91d5-4afa-97d3-d73a3e940c82" alt="image" width="40%">
-
+The image above is an example of the `Pixelate` feature.
 
 ## Features
 
+<img src="https://github.com/dannythedev/pixel_image_manipulator/assets/99733108/ba5cd450-91d5-4afa-97d3-d73a3e940c82" alt="image" width="40%">
+
+### 
 - **Resize Images:** Resize multiple images by specifying the percentage of resizing.
-- **Create Spritesheet:** Combine multiple images into a single spritesheet.
+- **Make Spritesheet:** Combine multiple images into a single spritesheet.
 - **Replace Colors:** Replace specific colors in images with new ones.
-- **Pixelate Images:** Pixelate images with customizable block size, saturation level, and palette selection.
-
-<img src="https://github.com/dannythedev/pixel_image_manipulator/assets/99733108/c28166c7-a3b7-445d-b15e-c7c1aba464e7" alt="image" width="35%">
-
+- **Remove Color:** Turns a specific color in images transparent.
+- **Pixelate:** Pixelate images with customizable block size, saturation level, and palette selection.
+###
 ## Prerequisites
 
 Before running the application, ensure you have the following dependencies installed:
