@@ -2,12 +2,19 @@
 
 The Pixel Image Manipulator is a Python application built using tkinter for creating a user interface and PIL (Python Imaging Library) for image processing. It provides several image manipulation functionalities such as resizing images, creating spritesheets, replacing colors, and pixelating images.
 
+![image](https://github.com/dannythedev/pixel_image_manipulator/assets/99733108/ba5cd450-91d5-4afa-97d3-d73a3e940c82)
+
+
 ## Features
 
 - **Resize Images:** Resize multiple images by specifying the percentage of resizing.
 - **Create Spritesheet:** Combine multiple images into a single spritesheet.
 - **Replace Colors:** Replace specific colors in images with new ones.
 - **Pixelate Images:** Pixelate images with customizable block size, saturation level, and palette selection.
+
+![image](https://github.com/dannythedev/pixel_image_manipulator/assets/99733108/c28166c7-a3b7-445d-b15e-c7c1aba464e7)
+
+![duck](https://github.com/dannythedev/pixel_image_manipulator/assets/99733108/80e7b8d9-298a-400a-85bb-1daf8e803226)
 
 ## Prerequisites
 
