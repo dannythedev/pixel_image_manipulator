@@ -1,7 +1,6 @@
 import threading
-import tkinter as tk
 from tkinter.colorchooser import askcolor
-from tkinter import filedialog, messagebox, simpledialog
+from tkinter import filedialog, messagebox
 from tkinter.ttk import Progressbar
 
 from PIL import Image, ImageDraw
@@ -10,7 +9,43 @@ import os
 from collections import Counter
 
 import tkinter as tk
-import time
+
+BG_COLOR="#121212"
+FG_COLOR="#EEEEEE"
+
+class CustomDialog:
+    def __init__(self, parent, title, prompt, width=210, height=80):
+        self.parent = parent
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title(title)
+
+        # Customize background color of the dialog
+        self.dialog.configure(bg="#121212")
+
+        self.label = tk.Label(self.dialog, text=prompt, bg="#121212", fg="white")
+        self.label.pack()
+
+        self.entry = tk.Entry(self.dialog)
+        self.entry.pack()
+
+        self.button = tk.Button(self.dialog, text="OK", command=self.on_ok, bg="#007bff", fg="white")
+        self.button.pack()
+
+        # Variable to store entered value
+        self.result = None
+
+        # Set window size and make it non-resizable
+        self.dialog.geometry(f"{width}x{height}")
+        self.dialog.resizable(False, False)
+
+    def on_ok(self):
+        # Store the entered value
+        self.result = self.entry.get()
+        self.dialog.destroy()
+
+    def show(self):
+        self.parent.wait_window(self.dialog)
+        return self.result
 
 class ToolTip:
     def __init__(self, widget, text, fade_in_period=0.5):
@@ -66,7 +101,7 @@ class ImageManipulatorApp:
         self.root = root
         self.root.title("Image Manipulator")
 
-        self.frame = tk.Frame(root, bg="#f0f0f0")
+        self.frame = tk.Frame(root, bg=BG_COLOR)
         self.frame.pack(padx=20, pady=20)
 
         self.btn_select_images = tk.Button(self.frame, text="Resize Images", command=self.resize_images_option,
@@ -94,12 +129,15 @@ class ImageManipulatorApp:
         self.btn_remove_color.grid(row=2, column=1, pady=10, padx=10, sticky="ew")
         ToolTip(self.btn_remove_color, "Choose color to remove, select PNG images,\n remove color, save to subfolder in initial directory.")
 
-
     def resize_images_option(self):
         files = filedialog.askopenfilenames(filetypes=[("PNG files", "*.png")])
         if files:
             directory = os.path.dirname(files[0])
-            resize_percent_str = simpledialog.askstring("Input", "Enter Resize Percentage (%):", parent=self.root)
+
+            # Use custom dialog to get resize percentage
+            dialog = CustomDialog(self.root, "Input", "Enter Resize Percentage (%):")
+            resize_percent_str = dialog.show()
+
             if resize_percent_str:
                 resize_percent = float(resize_percent_str) / 100.0
                 ImageManipulator.resize_images(files, directory, resize_percent)
@@ -161,27 +199,39 @@ class ImageManipulatorApp:
         messagebox.showinfo("Success", "Color removed from images and saved successfully.")
 
 
+class CustomProgressBar:
+    def __init__(self, parent):
+        self.progress_bar = Progressbar(parent, orient=tk.HORIZONTAL, mode='determinate')
+        self.progress_bar.grid(row=5, column=0, columnspan=2, padx=10, pady=5)
+
+    def update_progress(self, value, maximum):
+        self.progress_bar['value'] = value
+        self.progress_bar['maximum'] = maximum
+
+    def destroy(self):
+        self.progress_bar.destroy()
+
 class PixelateWindow:
     def __init__(self, root, files):
         self.files = files
         self.pixelate_window = tk.Toplevel(root)
         self.pixelate_window.title("Pixelation Options")
 
-        self.pixelate_window.configure(bg="#f0f0f0")
+        self.pixelate_window.configure(bg=BG_COLOR)
 
-        self.block_size_label = tk.Label(self.pixelate_window, text="Block Size", bg="#f0f0f0")
+        self.block_size_label = tk.Label(self.pixelate_window, text="Block Size", bg=BG_COLOR, fg=FG_COLOR)
         self.block_size_label.grid(row=0, column=0, padx=10, pady=5)
-        self.block_size_scale = tk.Scale(self.pixelate_window, from_=1, to=20, orient="horizontal")
+        self.block_size_scale = tk.Scale(self.pixelate_window, from_=1, to=20, orient="horizontal", bg=BG_COLOR, fg=FG_COLOR)
         self.block_size_scale.set(4)
         self.block_size_scale.grid(row=0, column=1, padx=10, pady=5)
 
-        self.saturation_label = tk.Label(self.pixelate_window, text="Saturation Level", bg="#f0f0f0")
+        self.saturation_label = tk.Label(self.pixelate_window, text="Saturation Level", bg=BG_COLOR, fg=FG_COLOR)
         self.saturation_label.grid(row=1, column=0, padx=10, pady=5)
-        self.saturation_scale = tk.Scale(self.pixelate_window, from_=-100, to=100, orient="horizontal")
+        self.saturation_scale = tk.Scale(self.pixelate_window, from_=-100, to=100, orient="horizontal", bg=BG_COLOR, fg=FG_COLOR)
         self.saturation_scale.set(-25)
         self.saturation_scale.grid(row=1, column=1, padx=10, pady=5)
 
-        self.palette_label = tk.Label(self.pixelate_window, text="Select Palette:", bg="#f0f0f0")
+        self.palette_label = tk.Label(self.pixelate_window, text="Select Palette:", bg=BG_COLOR, fg=FG_COLOR)
         self.palette_label.grid(row=2, column=0, padx=10, pady=5)
 
         # Define sample palettes
@@ -200,15 +250,15 @@ class PixelateWindow:
              (56, 183, 100), (37, 113, 121), (41, 54, 111), (59, 93, 201), (65, 166, 246), (115, 239, 247),
              (244, 244, 244), (148, 176, 194), (86, 108, 134), (51, 60, 87)]
         ]
-
+        self.progress_bar = None
 
         # Display sample palettes
         self.palette_var = tk.StringVar()
         self.palette_var.set("Palette 1")  # Default palette
         self.palette_menu = tk.OptionMenu(self.pixelate_window, self.palette_var, *["Palette "+str(i+1) for i in range(len(self.palettes))])
         self.palette_menu.grid(row=2, column=1, padx=10, pady=5)
-
-        self.palette_dropdown = tk.Menu(self.palette_menu, tearoff=0)
+        self.palette_menu.configure(bg=BG_COLOR, fg=FG_COLOR)
+        self.palette_dropdown = tk.Menu(self.palette_menu, tearoff=0, bg=BG_COLOR, fg=FG_COLOR)
         self.palette_menu.configure(menu=self.palette_dropdown)
 
         # Add palettes to the dropdown menu
@@ -219,7 +269,7 @@ class PixelateWindow:
         self.remove_background_var = tk.IntVar()
         self.remove_background_checkbutton = tk.Checkbutton(self.pixelate_window, text="Remove Background",
                                                              variable=self.remove_background_var,
-                                                             onvalue=1, offvalue=0)
+                                                             onvalue=1, offvalue=0, bg=BG_COLOR, fg=FG_COLOR)
         self.remove_background_checkbutton.select()
         self.remove_background_checkbutton.grid(row=3, column=0, columnspan=2, pady=5)
 
@@ -270,18 +320,14 @@ class PixelateWindow:
         selected_palette = self.palettes[selected_palette_index]
 
         # Progress bar
-        self.progress_bar = Progressbar(self.pixelate_window, orient=tk.HORIZONTAL, mode='determinate')
-        self.progress_bar.grid(row=5, column=0, columnspan=2, padx=10, pady=5)
-
-        # Initialize progress bar
-        self.progress_bar['value'] = 0
-        self.progress_bar['maximum'] = len(self.files)
+        self.progress_bar = CustomProgressBar(self.pixelate_window)  # Create instance of CustomProgressBar
+        self.progress_bar.update_progress(0, len(self.files))
 
         # Pixelate images
         for i, file in enumerate(self.files):
             ImageManipulator.pixelate_image(file, block_size, saturation, remove_background, selected_palette)
             # Update progress bar
-            self.progress_bar['value'] = i + 1
+            self.progress_bar.update_progress(i + 1, len(self.files))
             self.pixelate_window.update_idletasks()
         messagebox.showinfo("Success", f"Pixelated image saved successfully.")
         self.progress_bar.destroy()
@@ -462,5 +508,6 @@ class ImageManipulator:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    root.configure(bg=BG_COLOR)  # Dark mode
     app = ImageManipulatorApp(root)
     root.mainloop()
