@@ -23,7 +23,7 @@ Install the dependencies using the following command:
 
 ## Usage
 
-1. Run the `image_manipulator.py` script.
+1. Run the `app.py` script.
 2. Use the buttons in the GUI to select the desired image manipulation option.
 3. Follow the prompts and dialogs to specify parameters and select images.
 4. View the output images generated in the respective directories.
