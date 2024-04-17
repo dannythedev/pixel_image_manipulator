@@ -257,7 +257,7 @@ class PixelateWindow:
         # Initialize the preview area
         self.preview_canvas = tk.Canvas(self.pixelate_window, bg=BG_COLOR, highlightbackground=BG_COLOR, width=200, height=200)
         self.preview_canvas.grid(row=0, column=1, padx=10, pady=5)
-        # ---
+
         self.block_size_label = tk.Label(self.pixelate_window, text="Block Size", bg=BG_COLOR, fg=FG_COLOR)
         self.block_size_label.grid(row=1, column=0, padx=10, pady=5)
         self.block_size_scale = tk.Scale(self.pixelate_window, from_=1, to=20, orient="horizontal", bg=BG_COLOR,
@@ -339,10 +339,10 @@ class PixelateWindow:
 
         self.remove_background_var = tk.IntVar()
         self.remove_background_checkbutton = tk.Checkbutton(self.pixelate_window, text="Remove Background",
-                                                            variable=self.remove_background_var,
-                                                            onvalue=1, offvalue=0, bg=BG_COLOR, fg=FG_COLOR)
-        self.remove_background_checkbutton.select()
+                                                             variable=self.remove_background_var,
+                                                             onvalue=1, offvalue=0, bg=BG_COLOR, fg=FG_COLOR)
         self.remove_background_checkbutton.grid(row=4, column=0, columnspan=2, pady=5)
+        self.remove_background_checkbutton.select()
 
         self.pixelate_button = tk.Button(self.pixelate_window, text="Pixelate",
                                          bg="#17a2b8", fg="white", relief="flat", padx=10,
@@ -615,7 +615,7 @@ class ImageManipulator:
         newData = []
         pixels = image.getdata()
         for item in pixels:
-            if item[:3] == color:
+            if item[:3] == color[:3]:
                 newData.append((color[0], color[1], color[2], 0))
             else:
                 newData.append(item)
