@@ -17,6 +17,9 @@ The image above is an example of the `Pixelate` feature.
 - **Remove Color:** Turns a specific color in images transparent.
 - **Pixelate:** Pixelate images with customizable block size, saturation level, and palette selection.
 ###
+<img src="https://github.com/dannythedev/pixel_image_manipulator/assets/99733108/3ab2cd62-0a42-4c79-9c8b-c70943125f25" alt="image" width="50%">
+
+###
 ## Prerequisites
 
 Before running the application, ensure you have the following dependencies installed:
