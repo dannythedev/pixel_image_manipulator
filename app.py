@@ -2,11 +2,12 @@ import threading
 from tkinter.colorchooser import askcolor
 from tkinter import filedialog, messagebox
 from tkinter.ttk import Progressbar
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageDraw, ImageTk, ImageEnhance
 import numpy as np
 import os
 from collections import Counter
 import tkinter as tk
+import json
 
 BG_COLOR = "#121212"
 FG_COLOR = "#EEEEEE"
@@ -236,7 +237,7 @@ class ImageManipulatorApp:
 class CustomProgressBar:
     def __init__(self, parent):
         self.progress_bar = Progressbar(parent, orient=tk.HORIZONTAL, mode='determinate')
-        self.progress_bar.grid(row=5, column=0, columnspan=2, padx=10, pady=5)
+        self.progress_bar.grid(row=7, column=1, columnspan=3, padx=10, pady=5, sticky="e")
 
     def update_progress(self, value, maximum):
         self.progress_bar['value'] = value
@@ -248,6 +249,7 @@ class CustomProgressBar:
 
 class PixelateWindow:
     def __init__(self, root, files):
+        self.preview_photo = None
         self.files = files
         self.pixelate_window = tk.Toplevel(root)
         self.pixelate_window.title("Pixelation Options")
@@ -255,25 +257,34 @@ class PixelateWindow:
         self.pixelate_window.configure(bg=BG_COLOR)
 
         # Initialize the preview area
-        self.preview_canvas = tk.Canvas(self.pixelate_window, bg=BG_COLOR, highlightbackground=BG_COLOR, width=200, height=200)
+        self.preview_canvas = tk.Canvas(self.pixelate_window, bg=BG_COLOR, highlightbackground=BG_COLOR, width=200,
+                                        height=200)
         self.preview_canvas.grid(row=0, column=1, padx=10, pady=5)
-
+        self.values = {'block_size': 4, 'saturation': -25, 'brightness': 0, 'contrast': 0, 'palette': '',
+                       'background': 0}
         self.block_size_label = tk.Label(self.pixelate_window, text="Block Size", bg=BG_COLOR, fg=FG_COLOR)
         self.block_size_label.grid(row=1, column=0, padx=10, pady=5)
         self.block_size_scale = tk.Scale(self.pixelate_window, from_=1, to=20, orient="horizontal", bg=BG_COLOR,
                                          fg=FG_COLOR)
-        self.block_size_scale.set(4)
+        self.block_size_scale.set(self.values['block_size'])
         self.block_size_scale.grid(row=1, column=1, padx=10, pady=5)
 
-        self.saturation_label = tk.Label(self.pixelate_window, text="Saturation Level", bg=BG_COLOR, fg=FG_COLOR)
-        self.saturation_label.grid(row=2, column=0, padx=10, pady=5)
-        self.saturation_scale = tk.Scale(self.pixelate_window, from_=-100, to=100, orient="horizontal", bg=BG_COLOR,
-                                         fg=FG_COLOR)
-        self.saturation_scale.set(-25)
-        self.saturation_scale.grid(row=2, column=1, padx=10, pady=5)
-
+        def create_slider(label_text, default_value, row):
+            label = tk.Label(self.pixelate_window, text=label_text, bg=BG_COLOR, fg=FG_COLOR)
+            label.grid(row=row, column=0, padx=10, pady=5)
+            scale = tk.Scale(self.pixelate_window, from_=-100, to=100, orient="horizontal", bg=BG_COLOR, fg=FG_COLOR,
+                             length=200)
+            scale.set(default_value)
+            scale.grid(row=row, column=1, padx=10, pady=5)
+            return scale
+        # Create saturation slider
+        self.saturation_scale = create_slider("Saturation Level", self.values['saturation'], 2)
+        # Create brightness slider
+        self.brightness_scale = create_slider("Brightness Level", self.values['brightness'], 3)
+        # Create brightness slider
+        self.contrast_scale = create_slider("Contrast Level", self.values['contrast'], 4)
         self.palette_label = tk.Label(self.pixelate_window, text="Select Palette:", bg=BG_COLOR, fg=FG_COLOR)
-        self.palette_label.grid(row=3, column=0, padx=10, pady=5)
+        self.palette_label.grid(row=5, column=0, padx=10, pady=5)
 
         # Define sample palettes with names
         self.palettes = [
@@ -310,6 +321,10 @@ class PixelateWindow:
             {"name": "Vibrant Mix", "colors": [(220, 20, 60), (255, 99, 71), (255, 215, 0), (255, 140, 0),
                                                (65, 105, 225), (0, 191, 255), (0, 128, 128), (0, 206, 209),
                                                (255, 69, 0), (255, 105, 180)]},
+            {"name": "Dusk Burst", "colors": [(255, 209, 102),(255, 174, 45),(255, 117, 0),
+                (255, 107, 165),(221, 72, 133),(152, 0, 109),(239, 98, 72),(221, 47, 45),
+                (194, 0, 0),(218, 218, 218),(168, 168, 168),(107, 107, 107),(255, 38, 38),
+                (191, 0, 0),(128, 0, 0),(255, 94, 0)]},
             {"name": "Rainy Dark Day",
              "colors": [(33, 68, 120), (0, 128, 128), (75, 0, 130), (38, 38, 51), (72, 61, 139), (25, 25, 112)]},
             {"name": "Calm Waters",
@@ -328,7 +343,7 @@ class PixelateWindow:
         self.palette_var.set(self.palettes[0]["name"])  # Default palette
         self.palette_menu = tk.OptionMenu(self.pixelate_window, self.palette_var,
                                           *[palette["name"] for palette in self.palettes])
-        self.palette_menu.grid(row=3, column=1, padx=10, pady=5)
+        self.palette_menu.grid(row=5, column=1, padx=10, pady=5)
         self.palette_menu.configure(bg=BG_COLOR, fg=FG_COLOR)
         self.palette_dropdown = tk.Menu(self.palette_menu, tearoff=0, bg=BG_COLOR, fg=FG_COLOR)
         self.palette_menu.configure(menu=self.palette_dropdown)
@@ -339,20 +354,69 @@ class PixelateWindow:
 
         self.remove_background_var = tk.IntVar()
         self.remove_background_checkbutton = tk.Checkbutton(self.pixelate_window, text="Remove Background",
-                                                             variable=self.remove_background_var,
-                                                             onvalue=1, offvalue=0, bg=BG_COLOR, fg=FG_COLOR)
-        self.remove_background_checkbutton.grid(row=4, column=0, columnspan=2, pady=5)
+                                                            variable=self.remove_background_var,
+                                                            onvalue=1, offvalue=0, bg=BG_COLOR, fg=FG_COLOR,
+                                                            selectcolor="black")
+        self.remove_background_checkbutton.grid(row=6, column=0, columnspan=2, pady=5)
         self.remove_background_checkbutton.select()
 
         self.pixelate_button = tk.Button(self.pixelate_window, text="Pixelate",
                                          bg="#17a2b8", fg="white", relief="flat", padx=10,
                                          command=self.start_pixelation_thread)
-        self.pixelate_button.grid(row=5, column=0, columnspan=2, pady=10)
+        self.pixelate_button.grid(row=7, column=0, columnspan=2, pady=10)
+        # Add Export Settings button
+        self.export_settings_button = tk.Button(self.pixelate_window, text="Export Settings",
+                                                bg="#28a745", fg="white", relief="flat", padx=10,
+                                                command=self.export_settings)
+        self.export_settings_button.grid(row=6, column=0, pady=5, sticky="s")
+
+        # Add Import Settings button
+        self.load_settings_button = tk.Button(self.pixelate_window, text="Import Settings",
+                                              bg="#007bff", fg="white", relief="flat", padx=10,
+                                              command=self.load_settings)
+        self.load_settings_button.grid(row=7, column=0, pady=5, sticky="n")
 
         self.palette_var.trace("w", lambda *args: self.update_preview())  # Bind to palette dropdown
         self.block_size_scale.bind("<ButtonRelease-1>", lambda *args: self.update_preview())  # Bind to block size scale
         self.saturation_scale.bind("<ButtonRelease-1>", lambda *args: self.update_preview())  # Bind to saturation scale
+        self.brightness_scale.bind("<ButtonRelease-1>", lambda *args: self.update_preview())  # Bind to saturation scale
+        self.contrast_scale.bind("<ButtonRelease-1>", lambda *args: self.update_preview())  # Bind to saturation scale
         self.update_preview()  # Update the preview initially
+
+    def export_settings(self):
+        # Ask the user to choose where to save the file
+        file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+        # If the user cancels the dialog, return None
+        if not file_path:
+            return None
+        # Export the current settings to a JSON file
+        with open(file_path, 'w') as json_file:
+            json.dump(self.values, json_file)
+        # Get the directory path
+        directory = os.path.dirname(file_path)
+        export_message(self.files, message="Settings exported.", dir=directory)
+
+    def load_settings(self):
+        # Ask the user to choose the JSON file to load
+        file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+
+        # If the user cancels the dialog, return None
+        if not file_path:
+            return None
+        try:
+            # Load settings from the JSON file
+            with open(file_path, 'r') as json_file:
+                self.values = json.load(json_file)
+
+            self.block_size_scale.set(self.values['block_size'])
+            self.saturation_scale.set(self.values['saturation'])
+            self.brightness_scale.set(self.values['brightness'])
+            self.contrast_scale.set(self.values['contrast'])
+            self.palette_var.set(self.values['palette'])
+            self.remove_background_var.set(self.values['background'])
+            self.update_preview()
+        except:
+            messagebox.showerror("Error", f"File could not be read.")
 
     def update_preview(self):
         # Define the maximum width and height for the preview
@@ -363,25 +427,33 @@ class PixelateWindow:
         if self.files:
             first_image_path = self.files[0]
             image = Image.open(first_image_path)
-
             # Resize the image to fit within the maximum width and height while maintaining aspect ratio
             image.thumbnail((max_width, max_height))
-
             # Get the size of the resized image
             width, height = image.size
+
             # Get parameters
             block_size = self.block_size_scale.get()
             saturation = self.saturation_scale.get()
+            brightness = self.brightness_scale.get()
+            contrast = self.contrast_scale.get()
+            background = self.remove_background_var.get()
+
             selected_palette = next((p["colors"] for p in self.palettes if p["name"] == self.palette_var.get()), None)
-
+            # if self.values['block_size'] != block_size or self.values['palette'] != selected_palette:
             # Pixelate the image
-            pixelated_image = ImageManipulator.pixelate(image, block_size, selected_palette, resize=False)
+            self.preview_photo = ImageManipulator.pixelate(image, block_size, selected_palette, resize=False)
+            self.preview_photo = ImageManipulator.adjust_saturation(self.preview_photo, saturation)
+            self.preview_photo = ImageManipulator.adjust_brightness(self.preview_photo, brightness)
+            self.preview_photo = ImageManipulator.adjust_contrast(self.preview_photo, contrast)
 
-            # Adjust saturation
-            saturated_image = ImageManipulator.adjust_saturation(pixelated_image, saturation)
-
+            self.values = {'block_size': block_size, 'saturation': saturation, 'brightness': brightness,
+                           'contrast': contrast,
+                           'palette': next((p["name"] for p in self.palettes if p["name"] == self.palette_var.get()),
+                                           None),
+                           'background': background}
             # Convert to PhotoImage
-            self.preview_photo = ImageTk.PhotoImage(saturated_image)
+            self.preview_photo = ImageTk.PhotoImage(self.preview_photo)
 
             # Update the preview canvas
             self.preview_canvas.config(width=width, height=height)  # Adjust canvas size
@@ -390,7 +462,7 @@ class PixelateWindow:
 
     def add_palette_to_menu(self, palette):
         # Create a menu item for the palette
-        palette_menu = tk.Menu(self.palette_dropdown, tearoff=0)
+        palette_menu = tk.Menu(self.palette_dropdown, tearoff=0, borderwidth=1)
 
         # Create a frame for each palette to display colors horizontally
         palette_frame = tk.Frame(palette_menu, relief='raised', borderwidth=1)
@@ -446,11 +518,16 @@ class PixelateWindow:
         export_message(self.files, message="Pixelated images saved successfully.")
 
 
-def export_message(files, message):
+def export_message(files, message, dir=None):
     if files:
-        exported_dir = os.path.dirname(files[0])
+        if not dir:
+            exported_dir = os.path.dirname(files[0])
+        else:
+            exported_dir = dir
+
         def open_directory():
             os.startfile(exported_dir)
+
         custom_box = CustomMessageBox("Success", message, f"{exported_dir}", open_directory)
         custom_box.show()
 
@@ -569,6 +646,26 @@ class ImageManipulator:
         return Image.fromarray(data, "HSV").convert("RGB")
 
     @staticmethod
+    def adjust_contrast(image, contrast):
+        if contrast == 0:
+            return image
+
+        enhancer = ImageEnhance.Contrast(image)
+        # Convert contrast from a scale of -100 to 100 to a factor between 0 and 2
+        contrast_factor = 1.0 + contrast / 100.0
+        return enhancer.enhance(contrast_factor)
+
+    @staticmethod
+    def adjust_brightness(image, brightness):
+        if brightness == 0:
+            return image
+
+        enhancer = ImageEnhance.Brightness(image)
+        # Convert brightness from a scale of -100 to 100 to a factor between 0 and 2
+        brightness_factor = 1.0 + brightness / 100.0
+        return enhancer.enhance(brightness_factor)
+
+    @staticmethod
     def pixelate(image, block_size, palette, resize=True):
         width, height = image.size
         h_blocks = height // block_size
@@ -590,6 +687,10 @@ class ImageManipulator:
             image = image.resize((new_width, new_height), resample=Image.NEAREST)
 
         return image
+
+    @staticmethod
+    def convert(photoimage):
+        return Image(photoimage)
 
     @staticmethod
     def closest_color(pixel, palette):
