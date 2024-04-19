@@ -164,6 +164,20 @@ class ImageManipulatorApp:
         ToolTip(self.btn_remove_color,
                 "Choose color to remove, select PNG images,\n remove color, save to subfolder in initial directory.")
 
+        link_label = tk.Label(root, text="About", fg="blue", cursor="hand2",
+                              bg=BG_COLOR)
+        link_label.place(relx=0.555, rely=0.86, anchor="ne")
+        link_label.bind("<Button-1>", lambda event: self.open_about_window())
+
+    def open_about_window(self):
+        messagebox.showinfo("About Pixel Image Manipulator", "Pixel Image Manipulator - A tool designed for simplifying\n"
+                                           "image manipulation!\n\n"
+                                           "- Resize Images: Resize multiple images by specifying the\n  percentage of resizing.\n"
+                                           "- Replace Colors: Replace specific colors in images with new\n  ones.\n"
+                                           "- Remove Color: Turns a specific color in images transparent.\n"
+                                           "- Pixelate: Pixelate images with customizable block size,"
+                                           "\n  saturation level, and palette selection.\n\n"
+                                           "Developed by dannythedev.")
     def resize_images_option(self):
         files = filedialog.askopenfilenames(filetypes=[("PNG files", "*.png")])
         if files:
