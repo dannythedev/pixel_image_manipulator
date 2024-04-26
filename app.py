@@ -274,7 +274,7 @@ class PixelateWindow:
         self.preview_canvas = tk.Canvas(self.pixelate_window, bg=BG_COLOR, highlightbackground=BG_COLOR, width=200,
                                         height=200)
         self.preview_canvas.grid(row=0, column=1, padx=10, pady=5)
-        self.values = {'block_size': 4, 'saturation': -25, 'brightness': 0, 'contrast': 0, 'palette': '',
+        self.values = {'block_size': 8, 'saturation': 0, 'brightness': 0, 'contrast': 0, 'palette': '',
                        'background': 0}
         self.block_size_label = tk.Label(self.pixelate_window, text="Block Size", bg=BG_COLOR, fg=FG_COLOR)
         self.block_size_label.grid(row=1, column=0, padx=10, pady=5)
@@ -348,7 +348,7 @@ class PixelateWindow:
             {"name": "Golden Sunset",
              "colors": [(255, 195, 160), (255, 140, 0), (204, 85, 0), (153, 51, 0), (102, 34, 0)]},
             {"name": "Soft Lavender",
-             "colors": [(200, 180, 215), (160, 120, 180), (120, 80, 145), (80, 40, 110), (40, 0, 75)]},
+             "colors": [(200, 180, 215), (160, 120, 180), (120, 80, 145), (80, 40, 110), (40, 0, 75)]}
         ]
         self.progress_bar = None
 
@@ -371,18 +371,24 @@ class PixelateWindow:
                                                             variable=self.remove_background_var,
                                                             onvalue=1, offvalue=0, bg=BG_COLOR, fg=FG_COLOR,
                                                             selectcolor="black")
-        self.remove_background_checkbutton.grid(row=6, column=0, columnspan=2, pady=5)
+        self.remove_background_checkbutton.grid(row=8, column=1, columnspan=2, pady=5)
         self.remove_background_checkbutton.select()
 
         self.pixelate_button = tk.Button(self.pixelate_window, text="Pixelate",
                                          bg="#17a2b8", fg="white", relief="flat", padx=10,
                                          command=self.start_pixelation_thread)
-        self.pixelate_button.grid(row=7, column=0, columnspan=2, pady=10)
+        self.pixelate_button.grid(row=7, column=2, columnspan=1, padx=10, pady=5, sticky="n")
+
+        self.browse_button = tk.Button(self.pixelate_window, text="Browse",
+                                         bg="#ccbb00", fg="white", relief="flat", padx=10,
+                                         command=self.choose_images)
+        self.browse_button.grid(row=6, column=2, columnspan=1, pady=5, padx=5, sticky="s")
+
         # Add Export Settings button
         self.export_settings_button = tk.Button(self.pixelate_window, text="Export Settings",
                                                 bg="#28a745", fg="white", relief="flat", padx=10,
                                                 command=self.export_settings)
-        self.export_settings_button.grid(row=6, column=0, pady=5, sticky="s")
+        self.export_settings_button.grid(row=6, column=0, pady=5, padx=5, sticky="s")
 
         # Add Import Settings button
         self.load_settings_button = tk.Button(self.pixelate_window, text="Import Settings",
@@ -396,6 +402,10 @@ class PixelateWindow:
         self.brightness_scale.bind("<ButtonRelease-1>", lambda *args: self.update_preview())  # Bind to saturation scale
         self.contrast_scale.bind("<ButtonRelease-1>", lambda *args: self.update_preview())  # Bind to saturation scale
         self.update_preview()  # Update the preview initially
+
+    def choose_images(self):
+        self.files = filedialog.askopenfilenames(filetypes=[("PNG files", "*.png")])
+        self.update_preview()
 
     def export_settings(self):
         # Ask the user to choose where to save the file
@@ -441,10 +451,6 @@ class PixelateWindow:
         if self.files:
             first_image_path = self.files[0]
             image = Image.open(first_image_path)
-            # Resize the image to fit within the maximum width and height while maintaining aspect ratio
-            image.thumbnail((max_width, max_height))
-            # Get the size of the resized image
-            width, height = image.size
 
             # Get parameters
             block_size = self.block_size_scale.get()
@@ -466,7 +472,11 @@ class PixelateWindow:
                            'palette': next((p["name"] for p in self.palettes if p["name"] == self.palette_var.get()),
                                            None),
                            'background': background}
-            # Convert to PhotoImage
+
+            # Resize the image to fit within the maximum width and height while maintaining aspect ratio
+            self.preview_photo.thumbnail((max_width, max_height))
+            width, height = self.preview_photo.size
+
             self.preview_photo = ImageTk.PhotoImage(self.preview_photo)
 
             # Update the preview canvas
@@ -681,26 +691,44 @@ class ImageManipulator:
 
     @staticmethod
     def pixelate(image, block_size, palette, resize=True):
+        import time
+        start = time.time()
         width, height = image.size
         h_blocks = height // block_size
         w_blocks = width // block_size
-        new_width = w_blocks * block_size
-        new_height = h_blocks * block_size
-        image = image.resize((new_width, new_height), resample=Image.NEAREST)
+        new_image = image.copy()  # Create a copy of the original image to avoid modifying it directly
+        closest_color_cache = {}  # Dictionary to cache closest color computations
+
         for j in range(h_blocks):
             for i in range(w_blocks):
-                box = (i * block_size, j * block_size, (i + 1) * block_size, (j + 1) * block_size)
-                region = image.crop(box)
-                average_color = tuple(map(int, np.mean(region, axis=(0, 1))))
-                closest = ImageManipulator.closest_color(average_color, palette)
-                image.paste(closest, box)
+                # Calculate block coordinates
+                x0, y0 = i * block_size, j * block_size
+                x1, y1 = x0 + block_size, y0 + block_size
+
+                # Extract the region from the original image
+                region = np.array(image.crop((x0, y0, x1, y1)))
+
+                # Compute the average color of the region using numpy
+                average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
+
+                # Check if the average color has been computed before
+                if average_color in closest_color_cache:
+                    closest = closest_color_cache[average_color]
+                else:
+                    # Find the closest color in the palette
+                    closest = ImageManipulator.closest_color(average_color, palette)
+                    closest_color_cache[average_color] = closest
+
+                # Paste the closest color onto the new image
+                new_image.paste(closest, (x0, y0, x1, y1))
+
         if resize:
             resize_factor = 1 / block_size
-            new_width = int(new_width * resize_factor)
-            new_height = int(new_height * resize_factor)
-            image = image.resize((new_width, new_height), resample=Image.NEAREST)
-
-        return image
+            new_width = int(width * resize_factor)
+            new_height = int(height * resize_factor)
+            new_image = new_image.resize((new_width, new_height), resample=Image.NEAREST)
+        print(abs(start - time.time()))
+        return new_image
 
     @staticmethod
     def convert(photoimage):
