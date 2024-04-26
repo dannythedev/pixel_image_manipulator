@@ -351,6 +351,7 @@ class PixelateWindow:
              "colors": [(200, 180, 215), (160, 120, 180), (120, 80, 145), (80, 40, 110), (40, 0, 75)]}
         ]
         self.progress_bar = None
+        self.closest_color_cache = {}  # Dictionary to cache closest color computations
 
         # Display sample palettes
         self.palette_var = tk.StringVar()
@@ -462,7 +463,8 @@ class PixelateWindow:
             selected_palette = next((p["colors"] for p in self.palettes if p["name"] == self.palette_var.get()), None)
             # if self.values['block_size'] != block_size or self.values['palette'] != selected_palette:
             # Pixelate the image
-            self.preview_photo = ImageManipulator.pixelate(image, block_size, selected_palette, resize=False)
+            self.preview_photo, self.closest_color_cache = ImageManipulator.pixelate(image, block_size, selected_palette,
+                                                            resize=False, closest_color_cache=self.closest_color_cache)
             self.preview_photo = ImageManipulator.adjust_saturation(self.preview_photo, saturation)
             self.preview_photo = ImageManipulator.adjust_brightness(self.preview_photo, brightness)
             self.preview_photo = ImageManipulator.adjust_contrast(self.preview_photo, contrast)
@@ -529,9 +531,11 @@ class PixelateWindow:
         self.progress_bar = CustomProgressBar(self.pixelate_window)  # Create instance of CustomProgressBar
         self.progress_bar.update_progress(0, len(self.files))
 
+
         # Pixelate images
         for i, file in enumerate(self.files):
-            ImageManipulator.pixelate_image(file, block_size, saturation, remove_background, selected_palette)
+            self.closest_color_cache = ImageManipulator.pixelate_image(file, block_size, saturation, remove_background,
+                                                                  selected_palette, closest_color_cache=self.closest_color_cache)
             # Update progress bar
             self.progress_bar.update_progress(i + 1, len(self.files))
             self.pixelate_window.update_idletasks()
@@ -648,9 +652,9 @@ class ImageManipulator:
         export_message(files, message="Color replaced and images saved successfully.")
 
     @staticmethod
-    def pixelate_image(image_path, block_size, saturation, remove_background, palette):
+    def pixelate_image(image_path, block_size, saturation, remove_background, palette, closest_color_cache=None):
         image = Image.open(image_path)
-        pixelated_image = ImageManipulator.pixelate(image, block_size, palette)
+        pixelated_image, closest_color_cache = ImageManipulator.pixelate(image, block_size, palette, closest_color_cache=closest_color_cache)
         pixelated_image = ImageManipulator.adjust_saturation(pixelated_image, saturation)
         if remove_background:
             pixelated_image = ImageManipulator.remove_img_background(pixelated_image)
@@ -659,6 +663,7 @@ class ImageManipulator:
             os.makedirs(output_dir)
         output_path = os.path.join(output_dir, os.path.basename(image_path))
         pixelated_image.save(output_path)
+        return closest_color_cache  # Return the updated closest_color_cache dictionary
 
     @staticmethod
     def adjust_saturation(image, saturation):
@@ -690,15 +695,15 @@ class ImageManipulator:
         return enhancer.enhance(brightness_factor)
 
     @staticmethod
-    def pixelate(image, block_size, palette, resize=True):
-        # import time
-        # start = time.time()
+    def pixelate(image, block_size, palette, resize=True, closest_color_cache=None):
+        import time
+        start = time.time()
         width, height = image.size
         h_blocks = height // block_size
         w_blocks = width // block_size
         new_image = image.copy()  # Create a copy of the original image to avoid modifying it directly
-        closest_color_cache = {}  # Dictionary to cache closest color computations
-
+        if not closest_color_cache:
+            closest_color_cache = {}
         for j in range(h_blocks):
             for i in range(w_blocks):
                 # Calculate block coordinates
@@ -727,8 +732,8 @@ class ImageManipulator:
             new_width = int(width * resize_factor)
             new_height = int(height * resize_factor)
             new_image = new_image.resize((new_width, new_height), resample=Image.NEAREST)
-        # print(abs(start - time.time()))
-        return new_image
+        print(abs(start - time.time()))
+        return new_image, closest_color_cache
 
     @staticmethod
     def convert(photoimage):
