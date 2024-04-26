@@ -251,7 +251,7 @@ class ImageManipulatorApp:
 class CustomProgressBar:
     def __init__(self, parent):
         self.progress_bar = Progressbar(parent, orient=tk.HORIZONTAL, mode='determinate')
-        self.progress_bar.grid(row=7, column=1, columnspan=3, padx=10, pady=5, sticky="e")
+        self.progress_bar.grid(row=6, column=1)
 
     def update_progress(self, value, maximum):
         self.progress_bar['value'] = value
@@ -371,7 +371,7 @@ class PixelateWindow:
                                                             variable=self.remove_background_var,
                                                             onvalue=1, offvalue=0, bg=BG_COLOR, fg=FG_COLOR,
                                                             selectcolor="black")
-        self.remove_background_checkbutton.grid(row=8, column=1, columnspan=2, pady=5)
+        self.remove_background_checkbutton.grid(row=7, column=1)
         self.remove_background_checkbutton.select()
 
         self.pixelate_button = tk.Button(self.pixelate_window, text="Pixelate",
@@ -691,8 +691,8 @@ class ImageManipulator:
 
     @staticmethod
     def pixelate(image, block_size, palette, resize=True):
-        import time
-        start = time.time()
+        # import time
+        # start = time.time()
         width, height = image.size
         h_blocks = height // block_size
         w_blocks = width // block_size
@@ -727,7 +727,7 @@ class ImageManipulator:
             new_width = int(width * resize_factor)
             new_height = int(height * resize_factor)
             new_image = new_image.resize((new_width, new_height), resample=Image.NEAREST)
-        print(abs(start - time.time()))
+        # print(abs(start - time.time()))
         return new_image
 
     @staticmethod
