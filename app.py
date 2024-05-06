@@ -351,7 +351,7 @@ class PixelateWindow:
              "colors": [(200, 180, 215), (160, 120, 180), (120, 80, 145), (80, 40, 110), (40, 0, 75)]}
         ]
         self.progress_bar = None
-        self.closest_color_cache = {}  # Dictionary to cache closest color computations
+        self.closest_color_cache = {color["name"]:{} for color in self.palettes}  # Dictionary to cache closest color computations
 
         # Display sample palettes
         self.palette_var = tk.StringVar()
@@ -444,10 +444,6 @@ class PixelateWindow:
             messagebox.showerror("Error", f"File could not be read.")
 
     def update_preview(self):
-        # Define the maximum width and height for the preview
-        max_width = 300
-        max_height = 300
-
         # Load the first chosen exported image
         if self.files:
             first_image_path = self.files[0]
@@ -463,7 +459,7 @@ class PixelateWindow:
             selected_palette = next((p["colors"] for p in self.palettes if p["name"] == self.palette_var.get()), None)
             # if self.values['block_size'] != block_size or self.values['palette'] != selected_palette:
             # Pixelate the image
-            self.preview_photo, self.closest_color_cache = ImageManipulator.pixelate(image, block_size, selected_palette,
+            self.preview_photo, self.closest_color_cache = ImageManipulator.pixelate(image, block_size, self.palette_var.get(), selected_palette,
                                                             resize=False, closest_color_cache=self.closest_color_cache)
             self.preview_photo = ImageManipulator.adjust_saturation(self.preview_photo, saturation)
             self.preview_photo = ImageManipulator.adjust_brightness(self.preview_photo, brightness)
@@ -476,13 +472,13 @@ class PixelateWindow:
                            'background': background}
 
             # Resize the image to fit within the maximum width and height while maintaining aspect ratio
-            self.preview_photo.thumbnail((max_width, max_height))
+            self.preview_photo.thumbnail((300, 300))
             width, height = self.preview_photo.size
 
             self.preview_photo = ImageTk.PhotoImage(self.preview_photo)
 
             # Update the preview canvas
-            self.preview_canvas.config(width=width, height=height)  # Adjust canvas size
+            self.preview_canvas.config(width=width, height=height) # Adjust canvas size
             self.preview_canvas.delete("all")
             self.preview_canvas.create_image(0, 0, anchor="nw", image=self.preview_photo)
 
@@ -507,6 +503,8 @@ class PixelateWindow:
         for color in palette["colors"]:
             color_hex = '#%02x%02x%02x' % color
             palette_menu.add_command(label='', background=color_hex, activebackground=color_hex, state='disabled')
+
+
 
     def select_palette(self, palette_name):
         # Set the selected palette
@@ -535,7 +533,7 @@ class PixelateWindow:
         # Pixelate images
         for i, file in enumerate(self.files):
             self.closest_color_cache = ImageManipulator.pixelate_image(file, block_size, saturation, remove_background,
-                                                                  selected_palette, closest_color_cache=self.closest_color_cache)
+                                                                  self.palette_var.get(), closest_color_cache=self.closest_color_cache)
             # Update progress bar
             self.progress_bar.update_progress(i + 1, len(self.files))
             self.pixelate_window.update_idletasks()
@@ -652,9 +650,9 @@ class ImageManipulator:
         export_message(files, message="Color replaced and images saved successfully.")
 
     @staticmethod
-    def pixelate_image(image_path, block_size, saturation, remove_background, palette, closest_color_cache=None):
+    def pixelate_image(image_path, block_size, saturation, remove_background, palette_name, palette, closest_color_cache=None):
         image = Image.open(image_path)
-        pixelated_image, closest_color_cache = ImageManipulator.pixelate(image, block_size, palette, closest_color_cache=closest_color_cache)
+        pixelated_image, closest_color_cache = ImageManipulator.pixelate(image, block_size, palette_name, palette, closest_color_cache=closest_color_cache)
         pixelated_image = ImageManipulator.adjust_saturation(pixelated_image, saturation)
         if remove_background:
             pixelated_image = ImageManipulator.remove_img_background(pixelated_image)
@@ -695,7 +693,7 @@ class ImageManipulator:
         return enhancer.enhance(brightness_factor)
 
     @staticmethod
-    def pixelate(image, block_size, palette, resize=True, closest_color_cache=None):
+    def pixelate(image, block_size, palette_name, palette, resize=True, closest_color_cache=None):
         import time
         start = time.time()
         width, height = image.size
@@ -717,12 +715,12 @@ class ImageManipulator:
                 average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
 
                 # Check if the average color has been computed before
-                if average_color in closest_color_cache:
-                    closest = closest_color_cache[average_color]
+                if average_color in closest_color_cache[palette_name]:
+                    closest = closest_color_cache[palette_name][average_color]
                 else:
                     # Find the closest color in the palette
                     closest = ImageManipulator.closest_color(average_color, palette)
-                    closest_color_cache[average_color] = closest
+                    closest_color_cache[palette_name][average_color] = closest
 
                 # Paste the closest color onto the new image
                 new_image.paste(closest, (x0, y0, x1, y1))
