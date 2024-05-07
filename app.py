@@ -362,6 +362,7 @@ class PixelateWindow:
         self.palette_menu.configure(bg=BG_COLOR, fg=FG_COLOR)
         self.palette_dropdown = tk.Menu(self.palette_menu, tearoff=0, bg=BG_COLOR, fg=FG_COLOR)
         self.palette_menu.configure(menu=self.palette_dropdown)
+        self.initial = False
 
         # Add palettes to the dropdown menu
         for palette in self.palettes:
@@ -459,17 +460,16 @@ class PixelateWindow:
             selected_palette = next((p["colors"] for p in self.palettes if p["name"] == self.palette_var.get()), None)
             # if self.values['block_size'] != block_size or self.values['palette'] != selected_palette:
             # Pixelate the image
-            self.preview_photo, self.closest_color_cache = ImageManipulator.pixelate(image, block_size, self.palette_var.get(), selected_palette,
-                                                            resize=False, closest_color_cache=self.closest_color_cache)
-            self.preview_photo = ImageManipulator.adjust_saturation(self.preview_photo, saturation)
-            self.preview_photo = ImageManipulator.adjust_brightness(self.preview_photo, brightness)
-            self.preview_photo = ImageManipulator.adjust_contrast(self.preview_photo, contrast)
-
-            self.values = {'block_size': block_size, 'saturation': saturation, 'brightness': brightness,
-                           'contrast': contrast,
-                           'palette': next((p["name"] for p in self.palettes if p["name"] == self.palette_var.get()),
-                                           None),
-                           'background': background}
+            if self.initial:
+                self.preview_photo, self.closest_color_cache = ImageManipulator.pixelate(image, block_size, self.palette_var.get(), selected_palette,
+                                                                resize=False, closest_color_cache=self.closest_color_cache)
+                self.preview_photo = ImageManipulator.adjust_saturation(self.preview_photo, saturation)
+                self.preview_photo = ImageManipulator.adjust_brightness(self.preview_photo, brightness)
+                self.preview_photo = ImageManipulator.adjust_contrast(self.preview_photo, contrast)
+            else:
+                # Convert the PIL Image to a Tkinter PhotoImage
+                self.preview_photo = image
+                self.initial = True
 
             # Resize the image to fit within the maximum width and height while maintaining aspect ratio
             self.preview_photo.thumbnail((300, 300))
@@ -478,10 +478,20 @@ class PixelateWindow:
             self.preview_photo = ImageTk.PhotoImage(self.preview_photo)
 
             # Update the preview canvas
-            self.preview_canvas.config(width=width, height=height) # Adjust canvas size
             self.preview_canvas.delete("all")
+
+            self.preview_canvas.config(width=width,
+                                       height=height)
             self.preview_canvas.create_image(0, 0, anchor="nw", image=self.preview_photo)
 
+            self.values = {'block_size': block_size, 'saturation': saturation, 'brightness': brightness,
+                           'contrast': contrast,
+                           'palette': next((p["name"] for p in self.palettes if p["name"] == self.palette_var.get()),
+                                           None),
+                           'background': background}
+
+    def print_canvas_dimensions(self):
+        print(self.preview_canvas.winfo_width(), self.preview_canvas.winfo_height())
     def add_palette_to_menu(self, palette):
         # Create a menu item for the palette
         palette_menu = tk.Menu(self.palette_dropdown, tearoff=0, borderwidth=1)
@@ -503,8 +513,6 @@ class PixelateWindow:
         for color in palette["colors"]:
             color_hex = '#%02x%02x%02x' % color
             palette_menu.add_command(label='', background=color_hex, activebackground=color_hex, state='disabled')
-
-
 
     def select_palette(self, palette_name):
         # Set the selected palette
@@ -533,7 +541,7 @@ class PixelateWindow:
         # Pixelate images
         for i, file in enumerate(self.files):
             self.closest_color_cache = ImageManipulator.pixelate_image(file, block_size, saturation, remove_background,
-                                                                  self.palette_var.get(), closest_color_cache=self.closest_color_cache)
+                                                                  self.palette_var.get(), selected_palette, closest_color_cache=self.closest_color_cache)
             # Update progress bar
             self.progress_bar.update_progress(i + 1, len(self.files))
             self.pixelate_window.update_idletasks()
