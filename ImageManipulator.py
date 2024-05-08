@@ -6,6 +6,7 @@ import numpy as np
 import os
 from collections import Counter
 from Functions import export_message
+from collections import defaultdict
 
 class ImageManipulator:
     @staticmethod
@@ -178,7 +179,7 @@ class ImageManipulator:
         block_coords = [(i * block_size, j * block_size, (i + 1) * block_size, (j + 1) * block_size)
                         for j in range(h_blocks) for i in range(w_blocks)]
 
-        palette_cache_updates = {}  # Accumulate updates for each palette separately
+        palette_cache_updates = defaultdict(dict)
         count1, count2 = 0, 0
         for coords in block_coords:
             args = (image, coords, palette_name, palette, closest_color_cache)
@@ -186,16 +187,19 @@ class ImageManipulator:
             count1 += counts[0]
             count2 += counts[1]
             new_image.paste(closest, block_coords)
-
             # Accumulate updates for each palette
-            if palette_name not in palette_cache_updates:
-                palette_cache_updates[palette_name] = {}
             palette_cache_updates[palette_name].update(cache_update)
         print(f'{count1}/{count1+count2}')
         # Update the cache for each palette after processing all blocks
-        if count2 != 0:
+        if count2 > 0:
             for palette_name, updates in palette_cache_updates.items():
                 closest_color_cache[palette_name].update(updates)
+
+        if resize:
+            resize_factor = 1 / block_size
+            new_width = int(width * resize_factor)
+            new_height = int(height * resize_factor)
+            new_image = new_image.resize((new_width, new_height), resample=Image.NEAREST)
 
         print(abs(start - time.time()))
         return new_image, closest_color_cache
