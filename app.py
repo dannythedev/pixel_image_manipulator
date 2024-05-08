@@ -1,4 +1,6 @@
 import threading
+import time
+from multiprocessing import Pool
 from tkinter.colorchooser import askcolor
 from tkinter import filedialog, messagebox
 from tkinter.ttk import Progressbar
@@ -701,43 +703,50 @@ class ImageManipulator:
         return enhancer.enhance(brightness_factor)
 
     @staticmethod
+    def process_block(args):
+        image, block_coords, palette_name, palette, closest_color_cache = args
+        x0, y0, x1, y1 = block_coords
+
+        region = np.array(image.crop((x0, y0, x1, y1)))
+        average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
+
+        if average_color in closest_color_cache[palette_name]:
+            closest = closest_color_cache[palette_name][average_color]
+        else:
+            closest = ImageManipulator.closest_color(average_color, palette)
+            closest_color_cache[palette_name][average_color] = closest
+
+        return (block_coords, closest)
+
+    @staticmethod
     def pixelate(image, block_size, palette_name, palette, resize=True, closest_color_cache=None):
-        import time
         start = time.time()
         width, height = image.size
         h_blocks = height // block_size
         w_blocks = width // block_size
-        new_image = image.copy()  # Create a copy of the original image to avoid modifying it directly
+        new_image = image.copy()
+
         if not closest_color_cache:
             closest_color_cache = {}
-        for j in range(h_blocks):
-            for i in range(w_blocks):
-                # Calculate block coordinates
-                x0, y0 = i * block_size, j * block_size
-                x1, y1 = x0 + block_size, y0 + block_size
 
-                # Extract the region from the original image
-                region = np.array(image.crop((x0, y0, x1, y1)))
+        block_coords = [(i * block_size, j * block_size, (i + 1) * block_size, (j + 1) * block_size)
+                        for j in range(h_blocks) for i in range(w_blocks)]
 
-                # Compute the average color of the region using numpy
-                average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
+        pool = Pool()  # Create a multiprocessing pool
+        args = [(image, coords, palette_name, palette, closest_color_cache) for coords in block_coords]
+        results = pool.map(ImageManipulator.process_block, args)  # Process blocks in parallel
+        pool.close()
+        pool.join()
 
-                # Check if the average color has been computed before
-                if average_color in closest_color_cache[palette_name]:
-                    closest = closest_color_cache[palette_name][average_color]
-                else:
-                    # Find the closest color in the palette
-                    closest = ImageManipulator.closest_color(average_color, palette)
-                    closest_color_cache[palette_name][average_color] = closest
-
-                # Paste the closest color onto the new image
-                new_image.paste(closest, (x0, y0, x1, y1))
+        for block_coords, closest in results:
+            new_image.paste(closest, block_coords)
 
         if resize:
             resize_factor = 1 / block_size
             new_width = int(width * resize_factor)
             new_height = int(height * resize_factor)
             new_image = new_image.resize((new_width, new_height), resample=Image.NEAREST)
+
         print(abs(start - time.time()))
         return new_image, closest_color_cache
 
