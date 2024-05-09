@@ -196,10 +196,12 @@ class ImageManipulator:
     def pixelate(self, image, block_size, palette_name, palette, resize=True):
         # start = time.time()
         width, height = image.size
-        h_blocks = height // block_size
-        w_blocks = width // block_size
+        h_blocks = (height + block_size - 1) // block_size  # Ensure last block covers remaining pixels
+        w_blocks = (width + block_size - 1) // block_size
 
-        block_coords = [(i * block_size, j * block_size, (i + 1) * block_size, (j + 1) * block_size)
+        block_coords = [(i * block_size, j * block_size,
+                         min((i + 1) * block_size, width),  # Extend block to cover remaining pixels
+                         min((j + 1) * block_size, height))
                         for j in range(h_blocks) for i in range(w_blocks)]
 
         average_colors = []
