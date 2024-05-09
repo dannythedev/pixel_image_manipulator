@@ -1,6 +1,6 @@
 import threading
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from tkinter import filedialog, messagebox
 import numpy as np
 from PIL import Image, ImageTk, ImageEnhance
@@ -17,7 +17,7 @@ from ImageManipulator import ImageManipulator
 
 class PixelateWindow:
     def __init__(self, root, files):
-        self.pixelization = Pixelization()
+        self.pixelization = ImageManipulator()
         self.preview_photo = None
         self.files = files
         self.pixelate_window = tk.Toplevel(root)
@@ -262,105 +262,9 @@ class PixelateWindow:
         pixelated_image = self.pixelization.pixelate(image, block_size, palette_name, palette)
         pixelated_image = self.pixelization.adjust_saturation(pixelated_image, saturation)
         if remove_background:
-            pixelated_image = Pixelization.remove_img_background(pixelated_image)
+            pixelated_image = ImageManipulator.remove_img_background(pixelated_image)
         output_dir = os.path.join(os.path.dirname(image_path), 'pixelated_images')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         output_path = os.path.join(output_dir, os.path.basename(image_path))
         pixelated_image.save(output_path)
-
-
-
-class Pixelization:
-    def __init__(self):
-        self.closest_color_cache = {color["name"]: {} for color in PALETTES}
-
-    @staticmethod
-    def adjust_saturation(image, saturation):
-        if saturation == 0:
-            return image
-        image = image.convert("HSV")
-        data = np.array(image)
-        data[:, :, 1] = np.clip(data[:, :, 1] * (1 + saturation / 100), 0, 255)
-        return Image.fromarray(data, "HSV").convert("RGB")
-
-    @staticmethod
-    def adjust_contrast(image, contrast):
-        if contrast == 0:
-            return image
-
-        enhancer = ImageEnhance.Contrast(image)
-        # Convert contrast from a scale of -100 to 100 to a factor between 0 and 2
-        contrast_factor = 1.0 + contrast / 100.0
-        return enhancer.enhance(contrast_factor)
-
-    @staticmethod
-    def adjust_brightness(image, brightness):
-        if brightness == 0:
-            return image
-
-        enhancer = ImageEnhance.Brightness(image)
-        # Convert brightness from a scale of -100 to 100 to a factor between 0 and 2
-        brightness_factor = 1.0 + brightness / 100.0
-        return enhancer.enhance(brightness_factor)
-
-    @staticmethod
-    def remove_img_background(image):
-        image = image.convert("RGBA")
-        pixels = image.getdata()
-        color_counts = Counter(pixels)
-        max_color = color_counts.most_common(1)[0][0]
-        return ImageManipulator.remove_color(image, max_color)
-
-    @staticmethod
-    def closest_color(pixel, palette):
-        palette_array = np.array(palette)
-        tree = cKDTree(palette_array)
-        dist, idx = tree.query(pixel[:3])
-        return palette[idx]
-
-    def process_block(self, block_coords_list, average_colors_list, palette_name, palette):
-        closest_colors_list = []
-        count1, count2 = 0, 0
-        for block_coords, average_color in zip(block_coords_list, average_colors_list):
-            cached_closest = self.closest_color_cache[palette_name].get(average_color)
-            if cached_closest:
-                closest = cached_closest
-                count1 += 1
-            else:
-                closest = Pixelization.closest_color(average_color, palette)
-                self.closest_color_cache[palette_name][average_color] = closest
-                count2 += 1
-            closest_colors_list.append(closest)
-        return closest_colors_list, (count1, count2)
-
-    def pixelate(self, image, block_size, palette_name, palette, resize=True):
-        start = time.time()
-        width, height = image.size
-        h_blocks = height // block_size
-        w_blocks = width // block_size
-        new_image = image.copy()
-
-        block_coords = [(i * block_size, j * block_size, (i + 1) * block_size, (j + 1) * block_size)
-                        for j in range(h_blocks) for i in range(w_blocks)]
-
-        average_colors = []
-        for coords in block_coords:
-            region = np.array(image.crop(coords))
-            average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
-            average_colors.append(average_color)
-
-        closest_colors, (count1, count2) = self.process_block(block_coords, average_colors, palette_name, palette)
-
-        for closest, coords in zip(closest_colors, block_coords):
-            new_image.paste(closest, coords)
-
-        print(f'{count1}/{count1 + count2}')
-        if resize:
-            resize_factor = 1 / block_size
-            new_width = int(width * resize_factor)
-            new_height = int(height * resize_factor)
-            new_image = new_image.resize((new_width, new_height), resample=Image.NEAREST)
-
-        print(abs(start - time.time()))
-        return new_image

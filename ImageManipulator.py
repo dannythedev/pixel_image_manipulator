@@ -5,10 +5,15 @@ from PIL import Image, ImageDraw, ImageEnhance
 import numpy as np
 import os
 from collections import Counter
+
+from scipy.spatial import cKDTree
+
 from Functions import export_message
 from collections import defaultdict
 
 class ImageManipulator:
+    def __init__(self):
+        self.closest_color_cache = defaultdict(dict)
     @staticmethod
     def resize_images(files, output_directory, resize_percent):
         resized_directory = output_directory + "/resized_images"
@@ -113,4 +118,105 @@ class ImageManipulator:
             else:
                 newData.append(item)
         image.putdata(newData)
+        return image
+
+    @staticmethod
+    def adjust_saturation(image, saturation):
+        if saturation == 0:
+            return image
+        image = image.convert("HSV")
+        data = np.array(image)
+        data[:, :, 1] = np.clip(data[:, :, 1] * (1 + saturation / 100), 0, 255)
+        return Image.fromarray(data, "HSV").convert("RGB")
+
+    @staticmethod
+    def adjust_contrast(image, contrast):
+        if contrast == 0:
+            return image
+
+        enhancer = ImageEnhance.Contrast(image)
+        # Convert contrast from a scale of -100 to 100 to a factor between 0 and 2
+        contrast_factor = 1.0 + contrast / 100.0
+        return enhancer.enhance(contrast_factor)
+
+    @staticmethod
+    def adjust_brightness(image, brightness):
+        if brightness == 0:
+            return image
+
+        enhancer = ImageEnhance.Brightness(image)
+        # Convert brightness from a scale of -100 to 100 to a factor between 0 and 2
+        brightness_factor = 1.0 + brightness / 100.0
+        return enhancer.enhance(brightness_factor)
+
+    @staticmethod
+    def remove_img_background(image):
+        image = image.convert("RGBA")
+        pixels = image.getdata()
+        color_counts = Counter(pixels)
+        max_color = color_counts.most_common(1)[0][0]
+        return ImageManipulator.remove_color(image, max_color)
+
+    @staticmethod
+    def closest_color(pixel, palette):
+        palette_array = np.array(palette)
+        tree = cKDTree(palette_array)
+        dist, idx = tree.query(pixel[:3])
+        return palette[idx]
+
+    @staticmethod
+    def _encode_color(color):
+        # Encode the color as a unique integer
+        return (color[0] << 16) + (color[1] << 8) + color[2]
+
+    def process_block(self, average_colors_list, palette_name, palette):
+        closest_colors_list = []
+        count1, count2 = 0, 0
+
+        # Retrieve the cache dictionary for the given palette_name
+        palette_cache = self.closest_color_cache[palette_name]
+
+        for average_color in average_colors_list:
+            encoded_color = self._encode_color(average_color)
+            cached_closest = palette_cache.get(encoded_color)
+            if cached_closest:
+                closest = cached_closest
+                count1 += 1
+            else:
+                closest = ImageManipulator.closest_color(average_color, palette)
+                palette_cache[encoded_color] = closest
+                count2 += 1
+            closest_colors_list.append(closest)
+
+        return closest_colors_list, (count1, count2)
+
+    def pixelate(self, image, block_size, palette_name, palette, resize=True):
+        start = time.time()
+        width, height = image.size
+        h_blocks = height // block_size
+        w_blocks = width // block_size
+
+        block_coords = [(i * block_size, j * block_size, (i + 1) * block_size, (j + 1) * block_size)
+                        for j in range(h_blocks) for i in range(w_blocks)]
+
+        average_colors = []
+        for coords in block_coords:
+            region = np.array(image.crop(coords))
+            average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
+            average_colors.append(average_color)
+
+        closest_colors, (count1, count2) = self.process_block(average_colors, palette_name, palette)
+
+        for closest, coords in zip(closest_colors, block_coords):
+            image.paste(closest, coords)
+
+        print(f'{count1}/{count1 + count2}')
+
+        if resize:
+            resize_factor = 1 / block_size
+            new_width = int(width * resize_factor)
+            new_height = int(height * resize_factor)
+            image = image.resize((new_width, new_height), resample=Image.NEAREST)
+
+        print(abs(start - time.time()))
         return image
