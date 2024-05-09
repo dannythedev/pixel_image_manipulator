@@ -104,25 +104,6 @@ class ImageManipulator:
         return Image(photoimage)
 
     @staticmethod
-    def closest_color(pixel, palette):
-        min_dist = float('inf')
-        closest = None
-        for color in palette:
-            dist = np.linalg.norm(np.array(pixel[:3]) - np.array(color))
-            if dist < min_dist:
-                min_dist = dist
-                closest = color
-        return closest
-
-    @staticmethod
-    def remove_img_background(image):
-        image = image.convert("RGBA")
-        pixels = image.getdata()
-        color_counts = Counter(pixels)
-        max_color = color_counts.most_common(1)[0][0]
-        return ImageManipulator.remove_color(image, max_color)
-
-    @staticmethod
     def remove_color(image, color):
         newData = []
         pixels = image.getdata()
