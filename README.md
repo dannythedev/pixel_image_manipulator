@@ -41,6 +41,6 @@ Install the dependencies using the following command:
 
 ## File Structure
 
-- `app.py`: Main Python script containing the tkinter application and image manipulation functions.
+- `app.py`: Main Python script.
 - `requirements.txt`: List of Python dependencies required for the project.
 - `README.md`: This file providing an overview of the project and instructions for usage.
