@@ -55,7 +55,6 @@ PALETTES = [
      "colors": [(200, 180, 215), (160, 120, 180), (120, 80, 145), (80, 40, 110), (40, 0, 75)]}
 ]
 
-CLOSEST_COLOR_CACHE = {color["name"]: {} for color in PALETTES}
 
 def export_message(files, message, dir=None):
     if files:
