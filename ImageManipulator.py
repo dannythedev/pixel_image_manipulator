@@ -1,13 +1,9 @@
 import time
-from multiprocessing import Pool
 from tkinter import messagebox
 from PIL import Image, ImageDraw, ImageEnhance
 import numpy as np
 import os
 from collections import Counter
-
-from scipy.spatial import cKDTree
-
 from Functions import export_message
 from collections import defaultdict
 
@@ -159,10 +155,17 @@ class ImageManipulator:
 
     @staticmethod
     def closest_color(pixel, palette):
+        pixel_rgb = np.array(pixel[:3])
         palette_array = np.array(palette)
-        tree = cKDTree(palette_array)
-        dist, idx = tree.query(pixel[:3])
-        return palette[idx]
+
+        # Compute Euclidean distances between the pixel and all colors in the palette
+        distances = np.linalg.norm(palette_array - pixel_rgb, axis=1)
+        # Find the index of the color with the minimum distance
+        closest_index = np.argmin(distances)
+        # Retrieve the closest color from the palette
+        closest = palette[closest_index]
+
+        return closest
 
     @staticmethod
     def _encode_color(color):
@@ -191,7 +194,7 @@ class ImageManipulator:
         return closest_colors_list, (count1, count2)
 
     def pixelate(self, image, block_size, palette_name, palette, resize=True):
-        start = time.time()
+        # start = time.time()
         width, height = image.size
         h_blocks = height // block_size
         w_blocks = width // block_size
@@ -218,5 +221,5 @@ class ImageManipulator:
             new_height = int(height * resize_factor)
             image = image.resize((new_width, new_height), resample=Image.NEAREST)
 
-        print(abs(start - time.time()))
+        # print(abs(start - time.time()))
         return image
