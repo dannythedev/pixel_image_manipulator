@@ -1,12 +1,17 @@
 import threading
+import time
+from collections import defaultdict
 from tkinter import filedialog, messagebox
-from PIL import Image, ImageTk
+
+import numpy as np
+from PIL import Image, ImageTk, ImageEnhance
 import os
 import tkinter as tk
 import json
 from CustomWidgets import CustomProgressBar
 from Functions import export_message, BG_COLOR, PALETTES, FG_COLOR
 from ImageManipulator import ImageManipulator
+
 
 class PixelateWindow:
     def __init__(self, root, files):
@@ -159,14 +164,11 @@ class PixelateWindow:
             # if self.values['block_size'] != block_size or self.values['palette'] != selected_palette:
             # Pixelate the image
             if self.initial:
-                self.preview_photo, self.closest_color_cache = ImageManipulator.pixelate(image, block_size,
-                                                                                         self.palette_var.get(),
-                                                                                         selected_palette,
-                                                                                         resize=False,
-                                                                                         closest_color_cache=self.closest_color_cache)
-                self.preview_photo = ImageManipulator.adjust_saturation(self.preview_photo, saturation)
-                self.preview_photo = ImageManipulator.adjust_brightness(self.preview_photo, brightness)
-                self.preview_photo = ImageManipulator.adjust_contrast(self.preview_photo, contrast)
+                self.preview_photo = self.pixelate(image, block_size, self.palette_var.get(), selected_palette,
+                                                   resize=False)
+                self.preview_photo = PixelateWindow.adjust_saturation(self.preview_photo, saturation)
+                self.preview_photo = PixelateWindow.adjust_brightness(self.preview_photo, brightness)
+                self.preview_photo = PixelateWindow.adjust_contrast(self.preview_photo, contrast)
             else:
                 # Convert the PIL Image to a Tkinter PhotoImage
                 self.preview_photo = image
@@ -241,9 +243,8 @@ class PixelateWindow:
 
         # Pixelate images
         for i, file in enumerate(self.files):
-            self.closest_color_cache = ImageManipulator.pixelate_image(file, block_size, saturation, remove_background,
-                                                                       self.palette_var.get(), selected_palette,
-                                                                       closest_color_cache=self.closest_color_cache)
+            self.pixelate_image(file, block_size, saturation, remove_background,
+                                self.palette_var.get(), selected_palette)
             # Update progress bar
             self.progress_bar.update_progress(i + 1, len(self.files))
             self.pixelate_window.update_idletasks()
@@ -252,3 +253,90 @@ class PixelateWindow:
         # Re-enable the pixelate button
         self.pixelate_button.config(state=tk.NORMAL)
         export_message(self.files, message="Pixelated images saved successfully.")
+
+    def pixelate_image(self, image_path, block_size, saturation, remove_background, palette_name, palette):
+        image = Image.open(image_path)
+
+        pixelated_image = self.pixelate(image, block_size, palette_name, palette)
+        pixelated_image = PixelateWindow.adjust_saturation(pixelated_image, saturation)
+        if remove_background:
+            pixelated_image = ImageManipulator.remove_img_background(pixelated_image)
+        output_dir = os.path.join(os.path.dirname(image_path), 'pixelated_images')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        output_path = os.path.join(output_dir, os.path.basename(image_path))
+        pixelated_image.save(output_path)
+
+    @staticmethod
+    def adjust_saturation(image, saturation):
+        if saturation == 0:
+            return image
+        image = image.convert("HSV")
+        data = np.array(image)
+        data[:, :, 1] = np.clip(data[:, :, 1] * (1 + saturation / 100), 0, 255)
+        return Image.fromarray(data, "HSV").convert("RGB")
+
+    @staticmethod
+    def adjust_contrast(image, contrast):
+        if contrast == 0:
+            return image
+
+        enhancer = ImageEnhance.Contrast(image)
+        # Convert contrast from a scale of -100 to 100 to a factor between 0 and 2
+        contrast_factor = 1.0 + contrast / 100.0
+        return enhancer.enhance(contrast_factor)
+
+    @staticmethod
+    def adjust_brightness(image, brightness):
+        if brightness == 0:
+            return image
+
+        enhancer = ImageEnhance.Brightness(image)
+        # Convert brightness from a scale of -100 to 100 to a factor between 0 and 2
+        brightness_factor = 1.0 + brightness / 100.0
+        return enhancer.enhance(brightness_factor)
+
+    def process_block(self, args):
+        image, block_coords, palette_name, palette = args
+        x0, y0, x1, y1 = block_coords
+
+        region = np.array(image.crop((x0, y0, x1, y1)))
+        average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
+
+        if average_color in self.closest_color_cache[palette_name]:
+            closest = self.closest_color_cache[palette_name][average_color]
+            count = 1
+        else:
+            closest = ImageManipulator.closest_color(average_color, palette)
+            self.closest_color_cache[palette_name][average_color] = closest
+            count = 0
+        return block_coords, closest, (count, 1 - count)
+
+    def pixelate(self, image, block_size, palette_name, palette, resize=True):
+        start = time.time()
+        width, height = image.size
+        h_blocks = height // block_size
+        w_blocks = width // block_size
+        new_image = image.copy()
+
+        block_coords = [(i * block_size, j * block_size, (i + 1) * block_size, (j + 1) * block_size)
+                        for j in range(h_blocks) for i in range(w_blocks)]
+
+        palette_cache_updates = defaultdict(dict)
+        count1, count2 = 0, 0
+        for coords in block_coords:
+            args = (image, coords, palette_name, palette)
+            block_coords, closest, counts = self.process_block(args)
+            count1 += counts[0]
+            count2 += counts[1]
+            new_image.paste(closest, block_coords)
+        print(f'{count1}/{count1 + count2}')
+
+        if resize:
+            resize_factor = 1 / block_size
+            new_width = int(width * resize_factor)
+            new_height = int(height * resize_factor)
+            new_image = new_image.resize((new_width, new_height), resample=Image.NEAREST)
+
+        print(abs(start - time.time()))
+        return new_image
