@@ -86,7 +86,7 @@ class ImageManipulatorApp:
     def select_colors(self):
         # Set default colors
         default_color1 = (127, 127, 127)
-        default_color2 = (96, 180, 242)
+        default_color2 = (0, 0, 153)
         # Create a custom color picker dialog to choose the colors to replace
         target_color = askcolor(title="Choose Color to Replace", color=default_color1)
         if target_color:
