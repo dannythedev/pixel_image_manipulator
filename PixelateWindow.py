@@ -258,11 +258,10 @@ class PixelateWindow:
 
     def pixelate_image(self, image_path, block_size, saturation, remove_background, palette_name, palette):
         image = Image.open(image_path)
-
+        if remove_background:
+            image = ImageManipulator.remove_img_background(image)
         pixelated_image = self.pixelization.pixelate(image, block_size, palette_name, palette)
         pixelated_image = self.pixelization.adjust_saturation(pixelated_image, saturation)
-        if remove_background:
-            pixelated_image = ImageManipulator.remove_img_background(pixelated_image)
         output_dir = os.path.join(os.path.dirname(image_path), 'pixelated_images')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)

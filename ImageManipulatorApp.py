@@ -108,7 +108,7 @@ class ImageManipulatorApp:
 
     def remove_color_option(self):
         # Create a custom color picker dialog to choose the color to remove
-        default_color = (59, 93, 201)
+        default_color = (127, 127, 127)
         target_color = askcolor(title="Choose Color to Remove", color=default_color)[0]
         if target_color:
             target_color = tuple(int(x) for x in target_color)
