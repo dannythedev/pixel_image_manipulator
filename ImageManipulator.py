@@ -106,14 +106,35 @@ class ImageManipulator:
 
     @staticmethod
     def remove_color(image, color):
-        newData = []
-        pixels = image.getdata()
-        for item in pixels:
-            if item[:3] == color[:3]:
-                newData.append((color[0], color[1], color[2], 0))
-            else:
-                newData.append(item)
+        TRANSPARENT_COLOR = (1, 0, 1, 0)
+        width, height = image.size
+        pixels = list(image.getdata())
+
+        # Convert color to RGBA format if it's not already
+        color = color[:3] + (0,) if len(color) < 4 else color
+
+        # Create a new pixel array where the matched color is set to transparent
+        newData = [TRANSPARENT_COLOR if pixel[:3] == color[:3] and pixel[3] != 0 else pixel for pixel in pixels]
         image.putdata(newData)
+
+        # Convert newData to a 2D list for easier manipulation
+        pixel_matrix = [newData[i * width:(i + 1) * width] for i in range(height)]
+
+        # Helper function to check if a pixel is within bounds and is not already transparent
+        def is_valid_pixel(x, y):
+            return 0 <= x < width and 0 <= y < height and pixel_matrix[y][x][3] != 0
+
+        # Iterate over the image to find pixels adjacent to transparent pixels
+        for y in range(height):
+            for x in range(width):
+                if pixel_matrix[y][x][3] == 0:
+                    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                        nx, ny = x + dx, y + dy
+                        if is_valid_pixel(nx, ny):
+                            newData[ny * width + nx] = TRANSPARENT_COLOR
+
+        image.putdata(newData)
+
         return image
 
     @staticmethod
@@ -155,6 +176,9 @@ class ImageManipulator:
 
     @staticmethod
     def closest_color(pixel, palette):
+        if len(pixel) > 3:
+            if pixel[3] == 0:
+                return pixel
         pixel_rgb = np.array(pixel[:3])
         palette_array = np.array(palette)
 
