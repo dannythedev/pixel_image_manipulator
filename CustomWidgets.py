@@ -66,9 +66,15 @@ class CustomDialog:
 
 
 class CustomProgressBar:
-    def __init__(self, parent):
+    def __init__(self, parent, cancel_callback):
         self.progress_bar = Progressbar(parent, orient=tk.HORIZONTAL, mode='determinate')
         self.progress_bar.grid(row=6, column=1)
+
+        # Create cancel button
+        self.cancel_button = tk.Button(parent, text=" Cancel ",
+                                         bg="#dc3545", fg="white", relief="flat", padx=10,
+                                         command=cancel_callback)
+        self.cancel_button.grid(row=7, column=2, columnspan=1, padx=10, pady=5, sticky="n")
 
     def update_progress(self, value, maximum):
         self.progress_bar['value'] = value
@@ -76,6 +82,7 @@ class CustomProgressBar:
 
     def destroy(self):
         self.progress_bar.destroy()
+        self.cancel_button.destroy()
 
 
 class ToolTip:
