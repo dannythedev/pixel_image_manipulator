@@ -1,4 +1,3 @@
-import time
 from tkinter import messagebox
 from PIL import Image, ImageDraw, ImageEnhance
 import numpy as np

@@ -1,15 +1,9 @@
 import threading
-import time
-from collections import Counter, defaultdict
 from tkinter import filedialog, messagebox
-import numpy as np
-from PIL import Image, ImageTk, ImageEnhance
+from PIL import Image, ImageTk
 import os
 import tkinter as tk
 import json
-
-from scipy.spatial import cKDTree
-
 from CustomWidgets import CustomProgressBar
 from Functions import export_message, BG_COLOR, PALETTES, FG_COLOR
 from ImageManipulator import ImageManipulator
@@ -37,6 +31,9 @@ class PixelateWindow:
                                          fg=FG_COLOR)
         self.block_size_scale.set(self.values['block_size'])
         self.block_size_scale.grid(row=1, column=1, padx=10, pady=5)
+        self.canceled = False
+
+
 
         def create_slider(label_text, default_value, row):
             label = tk.Label(self.pixelate_window, text=label_text, bg=BG_COLOR, fg=FG_COLOR)
@@ -109,6 +106,7 @@ class PixelateWindow:
         self.brightness_scale.bind("<ButtonRelease-1>", lambda *args: self.update_preview())  # Bind to saturation scale
         self.contrast_scale.bind("<ButtonRelease-1>", lambda *args: self.update_preview())  # Bind to saturation scale
         self.update_preview()  # Update the preview initially
+        self.pixelate_button.config(state="disabled")
 
     def choose_images(self):
         self.files = filedialog.askopenfilenames(filetypes=[("PNG files", "*.png")])
@@ -194,6 +192,7 @@ class PixelateWindow:
                            'palette': next((p["name"] for p in PALETTES if p["name"] == self.palette_var.get()),
                                            None),
                            'background': background}
+        self.pixelate_button.config(state="normal")
 
     def print_canvas_dimensions(self):
         print(self.preview_canvas.winfo_width(), self.preview_canvas.winfo_height())
@@ -227,7 +226,8 @@ class PixelateWindow:
     def start_pixelation_thread(self):
         # Disable the pixelate button during pixelation
         self.pixelate_button.config(state=tk.DISABLED)
-
+        self.disable_buttons("disabled")
+        self.canceled = False
         # Start a new thread for pixelation
         threading.Thread(target=self.pixelate_images).start()
 
@@ -240,21 +240,31 @@ class PixelateWindow:
         selected_palette = next((p["colors"] for p in PALETTES if p["name"] == self.palette_var.get()), None)
 
         # Progress bar
-        self.progress_bar = CustomProgressBar(self.pixelate_window)  # Create instance of CustomProgressBar
+        self.progress_bar = CustomProgressBar(self.pixelate_window, self.cancel_pixelation)  # Pass cancel handler
         self.progress_bar.update_progress(0, len(self.files))
+
+        # Disable the pixelate button
+        self.pixelate_button.config(state=tk.DISABLED)
 
         # Pixelate images
         for i, file in enumerate(self.files):
+            if self.canceled:
+                break
             self.pixelate_image(file, block_size, saturation, remove_background,
                                 self.palette_var.get(), selected_palette)
             # Update progress bar
             self.progress_bar.update_progress(i + 1, len(self.files))
             self.pixelate_window.update_idletasks()
-        # Usage
+
+        # Cleanup
+        self.disable_buttons("normal")
         self.progress_bar.destroy()
-        # Re-enable the pixelate button
+        self.canceled = False  # Reset cancel flag
         self.pixelate_button.config(state=tk.NORMAL)
         export_message(self.files, message="Pixelated images saved successfully.")
+
+    def cancel_pixelation(self):
+        self.canceled = True
 
     def pixelate_image(self, image_path, block_size, saturation, remove_background, palette_name, palette):
         image = Image.open(image_path)
@@ -267,3 +277,9 @@ class PixelateWindow:
             os.makedirs(output_dir)
         output_path = os.path.join(output_dir, os.path.basename(image_path))
         pixelated_image.save(output_path)
+
+    def disable_buttons(self, state):
+        self.pixelate_button.config(state=state)
+        self.browse_button.config(state=state)
+        self.export_settings_button.config(state=state)
+        self.load_settings_button.config(state=state)
