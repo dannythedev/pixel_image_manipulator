@@ -203,6 +203,9 @@ class ImageManipulator:
         palette_cache = self.closest_color_cache[palette_name]
 
         for average_color in average_colors_list:
+            if len(average_color) == 4 and average_color[3] == 0:  # Skip transparent colors
+                closest_colors_list.append(average_color)
+                continue
             encoded_color = self._encode_color(average_color)
             cached_closest = palette_cache.get(encoded_color)
             if cached_closest:
