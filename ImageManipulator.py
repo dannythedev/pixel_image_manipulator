@@ -8,7 +8,9 @@ from collections import defaultdict
 
 class ImageManipulator:
     def __init__(self):
+        self.last_block_size = 0
         self.closest_color_cache = defaultdict(dict)
+        self.average_colors = []
     @staticmethod
     def resize_images(files, output_directory, resize_percent):
         resized_directory = output_directory + "/resized_images"
@@ -106,35 +108,12 @@ class ImageManipulator:
     @staticmethod
     def remove_color(image, color):
         TRANSPARENT_COLOR = (1, 0, 1, 0)
-        width, height = image.size
-        pixels = list(image.getdata())
+        image_data = np.array(image)
+        mask = np.all(image_data[:, :, :3] == color[:3], axis=-1)
+        image_data[mask] = TRANSPARENT_COLOR
+        return Image.fromarray(image_data)
 
-        # Convert color to RGBA format if it's not already
-        color = color[:3] + (0,) if len(color) < 4 else color
 
-        # Create a new pixel array where the matched color is set to transparent
-        newData = [TRANSPARENT_COLOR if pixel[:3] == color[:3] and pixel[3] != 0 else pixel for pixel in pixels]
-        image.putdata(newData)
-
-        # Convert newData to a 2D list for easier manipulation
-        pixel_matrix = [newData[i * width:(i + 1) * width] for i in range(height)]
-
-        # Helper function to check if a pixel is within bounds and is not already transparent
-        def is_valid_pixel(x, y):
-            return 0 <= x < width and 0 <= y < height and pixel_matrix[y][x][3] != 0
-
-        # Iterate over the image to find pixels adjacent to transparent pixels
-        for y in range(height):
-            for x in range(width):
-                if pixel_matrix[y][x][3] == 0:
-                    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                        nx, ny = x + dx, y + dy
-                        if is_valid_pixel(nx, ny):
-                            newData[ny * width + nx] = TRANSPARENT_COLOR
-
-        image.putdata(newData)
-
-        return image
 
     @staticmethod
     def adjust_saturation(image, saturation):
@@ -195,14 +174,14 @@ class ImageManipulator:
         # Encode the color as a unique integer
         return (color[0] << 16) + (color[1] << 8) + color[2]
 
-    def process_block(self, average_colors_list, palette_name, palette):
+    def process_block(self, palette_name, palette):
         closest_colors_list = []
         count1, count2 = 0, 0
 
         # Retrieve the cache dictionary for the given palette_name
         palette_cache = self.closest_color_cache[palette_name]
 
-        for average_color in average_colors_list:
+        for average_color in self.average_colors:
             if len(average_color) == 4 and average_color[3] == 0:  # Skip transparent colors
                 closest_colors_list.append(average_color)
                 continue
@@ -230,13 +209,14 @@ class ImageManipulator:
                          min((j + 1) * block_size, height))
                         for j in range(h_blocks) for i in range(w_blocks)]
 
-        average_colors = []
-        for coords in block_coords:
-            region = np.array(image.crop(coords))
-            average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
-            average_colors.append(average_color)
+        if self.last_block_size == block_size:
+            self.average_colors = []
+            for coords in block_coords:
+                region = np.array(image.crop(coords))
+                average_color = tuple(np.mean(region, axis=(0, 1)).astype(int))
+                self.average_colors.append(average_color)
 
-        closest_colors, (count1, count2) = self.process_block(average_colors, palette_name, palette)
+        closest_colors, (count1, count2) = self.process_block(palette_name, palette)
 
         for closest, coords in zip(closest_colors, block_coords):
             image.paste(closest, coords)
@@ -248,6 +228,6 @@ class ImageManipulator:
             new_width = int(width * resize_factor)
             new_height = int(height * resize_factor)
             image = image.resize((new_width, new_height), resample=Image.NEAREST)
-
+        self.last_block_size = block_size
         # print(abs(start - time.time()))
         return image
